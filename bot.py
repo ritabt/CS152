@@ -6,6 +6,7 @@ import json
 import logging
 import re
 import requests
+import emoji
 from report import Report
 
 # Set up logging to the console
@@ -114,7 +115,12 @@ class ModBot(discord.Client):
         Given a message, forwards the message to Perspective and returns a dictionary of scores.
         '''
         PERSPECTIVE_URL = 'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze'
-
+        
+        # check if message has any encrypted characters present (any unicode that is not an ascii letter or emoji)
+        for lett in message.content:
+            if ord(lett) >= 128 and lett not in emoji.UNICODE_EMOJI:
+                return {'SEVERE_TOXICITY': 1, 'PROFANITY': 1, 'IDENTITY_ATTACK': 1, 'THREAT': 1, 'TOXICITY': 1, 'FLIRTATION':1}
+        
         url = PERSPECTIVE_URL + '?key=' + self.perspective_key
         data_dict = {
             'comment': {'text': message.content},
