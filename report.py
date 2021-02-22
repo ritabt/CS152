@@ -13,12 +13,18 @@ class State(Enum):
 class ToxicThreshold(Enum):
     IDENTITY_ATTACK = 0.87
     THREAT = 0.88
-    FLIRTATION = 0.865
+    FLIRTATION = 1
     TOXICITY = 0.86
     SEVERE_TOXICITY = 0.75
     PROFANITY = 0.85
 
-
+class QuestionableThreshold(Enum):
+    IDENTITY_ATTACK = 0.65
+    THREAT = 0.64
+    FLIRTATION = 0.60
+    TOXICITY = 0.66
+    SEVERE_TOXICITY = 0.68
+    PROFANITY = 0.62
 
 class Report:
     START_KEYWORD = "report"
@@ -85,16 +91,24 @@ class Report:
         # 4. if user strike count > 3, delete user
         # 5. replace the message with "this message has been removed"
 
-        results = []
+        print("scoresssssss>>>>>", scores)
+
+        toxic_results = []
+        questionable_results = []
         for key in scores.keys():
             if scores.get(key, 0) > ToxicThreshold[key].value:
-                results.append(ToxicThreshold[key])
-        return results
+                toxic_results.append(ToxicThreshold[key])
+            elif scores.get(key, 0) > QuestionableThreshold[key].value:
+                questionable_results.append(QuestionableThreshold[key])
+        
+        if toxic_results:
+            return 1, toxic_results  
+        elif questionable_results: 
+            return 2, questionable_results
+        else:
+            return 0, []
 
-    def perform_action(self, threshold_results, author_id):
-
-        if not threshold_results :
-            return "This message seems to be okay"
+    def perform_toxic_action(self, toxic_results, author_id):
 
         self.client.warning_count[author_id] += 1
 
@@ -107,19 +121,44 @@ class Report:
             ToxicThreshold.FLIRTATION: 'flirtatious'
         }
 
-        message = 'This message is '
+        message = 'ALERT!!! This message was flagged as '
 
-        for threshold in threshold_results:
+        for threshold in toxic_results:
+            message += threshold_phrase.get(threshold, '') + ', '
+
+        if len(toxic_results) == 1:
+            return message.rstrip(', ')
+
+        formatted_message = message.rstrip(', ').split(', ')
+        last = formatted_message.pop()
+        return f"{', '.join(formatted_message)} and {last}."
+
+    def perform_questionable_action(self, questionable_results):
+
+        if not questionable_results :
+            return "This message seems to be okay"
+
+        threshold_phrase = {
+            QuestionableThreshold.IDENTITY_ATTACK: 'attacking identity',
+            QuestionableThreshold.PROFANITY: 'profane',
+            QuestionableThreshold.THREAT: 'threatening',
+            QuestionableThreshold.TOXICITY: 'toxic',
+            QuestionableThreshold.SEVERE_TOXICITY: 'vulgar',
+            QuestionableThreshold.FLIRTATION: 'flirtatious'
+        }
+
+        message = 'WARNING: This message might be '
+
+        for threshold in questionable_results:
             message += threshold_phrase.get(threshold) + ', '
 
-        if len(threshold_results) == 1:
+        if len(questionable_results) == 1:
             return message.rstrip(', ')
 
 
         formatted_message = message.rstrip(', ').split(', ')
         last = formatted_message.pop()
         return f"{', '.join(formatted_message)} and {last}."
-
 
     def report_complete(self):
         return self.state == State.REPORT_COMPLETE

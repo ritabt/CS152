@@ -37,6 +37,7 @@ class ModBot(discord.Client):
         self.warning_count = {} # no of times a user's message is flagged
         self._user_ban_message = None
         self._permission_denied = None
+        self._toxic_state = False
         self.state = None
         self.message = None
 
@@ -74,6 +75,23 @@ class ModBot(discord.Client):
         else:
             await self.handle_dm(message)
 
+    async def on_message_edit(self, before, message):
+        '''
+        This function is called whenever a message is sent in a channel that the bot can see (including DMs). 
+        Currently the bot is configured to only handle messages that are sent over DMs or in your group's "group-#" channel. 
+        '''
+
+        print('message::::::::', message)
+        # Ignore messages from us 
+        if message.author.id == self.user.id:
+            return
+        
+        # Check if this message was sent in a server ("guild") or if it's a DM
+        if message.guild:
+            await self.handle_channel_message(message)
+        else:
+            await self.handle_dm(message)
+
     async def handle_report(self, message, type_dm=False):
         author_id = message.author.id
         responses = []
@@ -99,19 +117,31 @@ class ModBot(discord.Client):
         
         # We want to evaluate all messages and check their threshold level
         scores = self.eval_text(self.message)
+
         threshold_results = self.reports[author_id].eval_threshold(scores)
-        threshold_message = self.reports[author_id].perform_action(threshold_results, author_id)
-        
+        if threshold_results[0] == 1:
+            self._toxic_state = True
+            threshold_message = self.reports[author_id].perform_toxic_action(threshold_results[1], author_id)
+        elif threshold_results[0] == 2:
+            self._toxic_state = False
+            threshold_message = self.reports[author_id].perform_questionable_action(threshold_results[1])
+        else:
+            self._toxic_state = False
+            threshold_message = ''
+
+        if type_dm:
+            return threshold_message
+
         # Ban a user if he is flagged 3 or more times
-        user_ban_message = "You've been banned from the group"
+        user_ban_message = f'{message.author.name} has been banned from the group'
         if self.warning_count[author_id] >= 3:
             self._user_ban_message = user_ban_message
         
-        #If a message is found wanting in any of the criteria, we want to delete the message
-        if threshold_results:
+        #If a message is found toxic, we want to delete the message
+        if threshold_results[0] == 1:
             try:
                 await message.delete()
-                self._permission_denied = "This message has been removed"
+                self._permission_denied = self.code_format(f'The message by {message.author.name} has been removed')
             except discord.errors.Forbidden as e:
                 print('Cannot delete message because ', e)
                 self._permission_denied = "Message cannot be deleted because permission was denied"
@@ -150,7 +180,7 @@ class ModBot(discord.Client):
 
             if self.user_ban_message:  
                 final_message += f"\n{self.user_ban_message}"
-            if self._permission_denied:
+            if self._permission_denied and self._toxic_state:
                 final_message += f"\n{self._permission_denied}"
             await message.channel.send(final_message)
 
@@ -162,17 +192,33 @@ class ModBot(discord.Client):
 
         # Forward the message to the mod channel
         mod_channel = self.mod_channels[message.guild.id]
-        await mod_channel.send(f'Forwarded message:\n{message.author.name}: "{message.content}"')
         
         response_message = await self.handle_report(message)
+        if not response_message:
+            return
+        
+        if self.warning_count[message.author.id] > 3:
+            return 
+
+        warning_count_message = 'The message is not appropriate for this platform. After three counts, \
+you\'ll be banned from the channel\nCurrent count is ' + str(self.warning_count[message.author.id])
+        await mod_channel.send(f'Forwarded message:\n{message.author.name}: "{message.content}"')
         await mod_channel.send(response_message)
+
+        if self._toxic_state:
+            await message.author.send(self.code_format(f'{message.content}\n{response_message}\n{warning_count_message}'))
+
         
         # send the final message to the mod channel
         final_message =''
+        
+        # If it is a message it is expected to delete
+        if self._permission_denied and self._toxic_state:
+            await message.channel.send(self._permission_denied)
+
         if self.user_ban_message:  
             final_message = self.user_ban_message
             await message.channel.send(self.user_ban_message)
-        await message.channel.send(self._permission_denied if self._permission_denied else "")
     
         # await mod_channel.send(self.code_format(json.dumps(scores, indent=2)))
 
