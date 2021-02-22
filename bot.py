@@ -249,7 +249,7 @@ you\'ll be banned from the channel\nCurrent count is ' + str(self.warning_count[
         # check if message has any encrypted characters present (any unicode that is not an ascii letter or emoji)
         for lett in message.content:
             if ord(lett) >= 128 and lett not in emoji.UNICODE_EMOJI:
-                return {'SEVERE_TOXICITY': 1, 'PROFANITY': 1, 'IDENTITY_ATTACK': 1, 'THREAT': 1, 'TOXICITY': 1, 'FLIRTATION':1}
+                return {'SEVERE_TOXICITY': 0.681, 'PROFANITY': 0.621, 'IDENTITY_ATTACK': 0.651, 'THREAT': 0.641, 'TOXICITY':0.661, 'FLIRTATION': 0.601}
         
         url = PERSPECTIVE_URL + '?key=' + self.perspective_key
         data_dict = {

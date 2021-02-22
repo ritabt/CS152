@@ -116,24 +116,12 @@ class Report:
             except KeyError:
                 return "Invalid response"
 
-            # report_phrase = {
-            #     Type.SPAM_KEYWORD: "spam"
-            #     Type.DISLIKE_KEYWORD: "dislike"
-            #     Type.HATE_KEYWORD: "hate speech"
-            #     Type.DOXXING_KEYWORD: "doxxing"
-            #     Type.THREAT_KEYWORD: "threat"
-            #     Type.HARRASS_KEYWORD: "harassment"
-            #     Type.HEALTH_KEYWORD: "suicide/self-harm"
-            #     Type.GRAPHIC_KEYWORD: "nudity/pornagraphy"
-            #     Type.CSA_KEYWORD: "csa"
-            #     Type.ASA_KEYWORD: "asa"
-            # }
         return []
 
     def handle_report_reply(self, message):
         try:
             type_key = f'{message.upper()}_KEYWORD'
-            result = f'High Priority - This message was flagged as {Type[type_key].value}' 
+            result = f'High Priority - This message was reported as {Type[type_key].value}' 
             return result
         except KeyError:
             "Invalid response"
@@ -144,11 +132,6 @@ class Report:
         '''
         Check the threshold of of every message
         '''
-        # 1. send to human moderator
-        # 2. tell the author that the message is toxic?
-        # 3. Add the user to the offence db and give him a strike count
-        # 4. if user strike count > 3, delete user
-        # 5. replace the message with "this message has been removed"
 
         print("scoresssssss>>>>>", scores)
 
@@ -168,7 +151,6 @@ class Report:
             return 0, []
 
     def perform_toxic_action(self, toxic_results, author_id):
-
         self.client.warning_count[author_id] += 1
 
         threshold_phrase = {
