@@ -9,6 +9,7 @@ class State(Enum):
     AWAITING_MESSAGE = auto()
     MESSAGE_IDENTIFIED = auto()
     REPORT_COMPLETE = auto()
+    CONTINUE_REPORT = auto()
 
 class ToxicThreshold(Enum):
     IDENTITY_ATTACK = 0.87
@@ -26,6 +27,18 @@ class QuestionableThreshold(Enum):
     SEVERE_TOXICITY = 0.68
     PROFANITY = 0.62
 
+class Type(Enum):
+   SPAM_KEYWORD = "spam"
+   DISLIKE_KEYWORD = "dislike"
+   HATE_KEYWORD = "hate speech"
+   DOXXING_KEYWORD = "doxxing"
+   THREAT_KEYWORD = "threat"
+   HARRASS_KEYWORD = "harassment"
+   HEALTH_KEYWORD = "suicide/self-harm"
+   GRAPHIC_KEYWORD = "nudity/pornagraphy"
+   CSA_KEYWORD = "csa"
+   ASA_KEYWORD = "asa"
+
 class Report:
     START_KEYWORD = "report"
     CANCEL_KEYWORD = "cancel"
@@ -36,6 +49,7 @@ class Report:
         self.client = client
         self.message = None
         self.client.state = self.state
+        self.client.continue_report = None
 
     async def handle_message(self, message):
         '''
@@ -63,7 +77,7 @@ class Report:
 
             if not m:
                 return ["I'm sorry, I couldn't read that link. Please try again or say `cancel` to cancel."]
-            guild = self.client.get_guild(int(m.group(1)))
+            self.client.private_dm_guild = guild = self.client.get_guild(int(m.group(1)))
             if not guild:
                 return ["I cannot accept reports of messages from guilds that I'm not in. Please have the guild owner add me to the guild and try again."]
             channel = guild.get_channel(int(m.group(2)))
@@ -77,9 +91,54 @@ class Report:
 
             # Here we've found the message - it's up to you to decide what to do next!
             self.client.state = self.state = State.MESSAGE_IDENTIFIED
-            return ["I found this message:", "```" + message.author.name + ": " + message.content + "```"]
+            reply = "I found this message:\n" + "```" + message.author.name + ": " + message.content + "```\n"
+            reply += "Please choose why you wish to report this content\n\n"
+            reply += "Reply 'spam' to report spam\n"
+            reply += "Reply 'dislike' to report something you don't like\n"
+            reply += "Reply 'hate speech' to report hate speech\n"
+            reply += "Reply 'doxxing' to report doxxing\n"
+            reply += "Reply 'threat' to report a violent or suspicious threat\n"
+            reply += "Reply 'harassment' to report harassment or encouraging harassment\n"
+            reply += "Reply 'suicide/self-harm' to report suicide or self-harm\n"
+            reply += "Reply 'nudity/pornagraphy' to report nudity or pornagraphy\n"
+            reply += "Reply 'csa' to report child abuse, child exploitation, or grooming behaviors\n"
+            reply += "Reply 'adult-abuse/adult-exploitation' to report abuse, exploitation, or grooming behaviors\n"
+            reply += "\n\n"
+           
+            return [reply]
+        
 
+        if self.client.state == State.CONTINUE_REPORT:
+            try:
+                result = Type[message.content.upper()]
+                self.state = self.client.state
+                return result
+            except KeyError:
+                return "Invalid response"
+
+            # report_phrase = {
+            #     Type.SPAM_KEYWORD: "spam"
+            #     Type.DISLIKE_KEYWORD: "dislike"
+            #     Type.HATE_KEYWORD: "hate speech"
+            #     Type.DOXXING_KEYWORD: "doxxing"
+            #     Type.THREAT_KEYWORD: "threat"
+            #     Type.HARRASS_KEYWORD: "harassment"
+            #     Type.HEALTH_KEYWORD: "suicide/self-harm"
+            #     Type.GRAPHIC_KEYWORD: "nudity/pornagraphy"
+            #     Type.CSA_KEYWORD: "csa"
+            #     Type.ASA_KEYWORD: "asa"
+            # }
         return []
+
+    def handle_report_reply(self, message):
+        try:
+            type_key = f'{message.upper()}_KEYWORD'
+            result = f'High Priority - This message was flagged as {Type[type_key].value}' 
+            return result
+        except KeyError:
+            "Invalid response"
+    
+
 
     def eval_threshold(self, scores):
         '''

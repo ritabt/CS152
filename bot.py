@@ -39,7 +39,9 @@ class ModBot(discord.Client):
         self._permission_denied = None
         self._toxic_state = False
         self.state = None
-        self.message = None
+        self.original_message = self.message = None
+        self.continue_report = None
+        self.private_dm_guild = None
 
     async def on_ready(self):
         print(f'{self.user.name} has connected to Discord! It is these guilds:')
@@ -80,8 +82,6 @@ class ModBot(discord.Client):
         This function is called whenever a message is sent in a channel that the bot can see (including DMs). 
         Currently the bot is configured to only handle messages that are sent over DMs or in your group's "group-#" channel. 
         '''
-
-        print('message::::::::', message)
         # Ignore messages from us 
         if message.author.id == self.user.id:
             return
@@ -104,17 +104,33 @@ class ModBot(discord.Client):
             self.warning_count[author_id] = 0
         
         self.message = message
+   
         
         if type_dm:
             # Let the report class handle this message; forward all the messages it returns to uss
             responses = await self.reports[author_id].handle_message(message)
-            for r in responses:
-                await message.channel.send(r)
+
+            if self.state != State.CONTINUE_REPORT:
+                for r in responses:
+                    await message.channel.send(r)
+                if self.state == State.MESSAGE_IDENTIFIED:
+                    self.original_message  =self.message
+                    self.state = State.CONTINUE_REPORT
 
             # if the user inputs any other thing except a valid link to a message they intend to report
-            if self.state and self.state != State.MESSAGE_IDENTIFIED:
+            if self.state and self.state != State.CONTINUE_REPORT:
                 return
-        
+
+            if self.state == State.CONTINUE_REPORT:
+                self.message = message
+                if self.private_dm_guild:
+                    mod_channel = self.mod_channels[self.private_dm_guild.id]
+                    report_reply = self.reports[author_id].handle_report_reply(message.content)
+                    if report_reply:
+                        await mod_channel.send(self.code_format(f'{self.original_message.author}:{self.original_message.content}\n{report_reply}'))
+                return
+
+
         # We want to evaluate all messages and check their threshold level
         scores = self.eval_text(self.message)
 
