@@ -5,9 +5,10 @@ import os
 import json
 import logging
 import re
-import requests
+import requests 
 from report import Report, State
 import emoji
+import csam_classifier as csam
 
 # Set up logging to the console
 logger = logging.getLogger('discord')
@@ -133,29 +134,54 @@ class ModBot(discord.Client):
 
 
         # We want to evaluate all messages and check their threshold level
-        scores = self.eval_text(self.message)
-
-        threshold_results = self.reports[author_id].eval_threshold(scores)
-        if threshold_results[0] == 1:
+        scores_all = self.eval_text(self.message)
+        image_score = scores_all[0]
+        
+        threshold_results_img = self.reports[author_id].eval_threshold(image_score)
+        
+        # report flow for images
+        if threshold_results_img[0] == 1:
             self._toxic_state = True
-            threshold_message = self.reports[author_id].perform_toxic_action(threshold_results[1], author_id)
-        elif threshold_results[0] == 2:
-            self._toxic_state = False
-            threshold_message = self.reports[author_id].perform_questionable_action(threshold_results[1])
+            threshold_message = self.reports[author_id].perform_toxic_action(threshold_results_img[1], author_id)
         else:
             self._toxic_state = False
-            threshold_message = ''
+            threshold_message = '' 
+            
+        # report flow for text
+
+        scores = scores_all[1]
+        if scores is not None:
+            threshold_results = self.reports[author_id].eval_threshold(scores)
+
+            if threshold_results[0] == 1:
+                self._toxic_state = True
+                threshold_message = self.reports[author_id].perform_toxic_action(threshold_results[1], author_id)
+            elif threshold_results[0] == 2:
+                self._toxic_state = False
+                threshold_message = self.reports[author_id].perform_questionable_action(threshold_results[1])
+            else:
+                self._toxic_state = False
+                threshold_message = ''
 
         if type_dm:
             return threshold_message
-
+            
         # Ban a user if he is flagged 3 or more times
         user_ban_message = f'{message.author.name} has been banned from the group'
         if self.warning_count[author_id] >= 3:
             self._user_ban_message = user_ban_message
         
         #If a message is found toxic, we want to delete the message
-        if threshold_results[0] == 1:
+        if threshold_results_img[0] == 1:
+            try:
+                await message.delete()
+                self._permission_denied = self.code_format(f'The image from {message.author.name} has been removed. Police will be enformed about CSAM content immediately and further steps will be taken if necessary.')
+                self._user_ban_message = user_ban_message
+            except discord.errors.Forbidden as e:
+                print('Cannot delete message because ', e)
+                self._permission_denied = "Message cannot be deleted because permission was denied"
+
+        if scores is not None and threshold_results[0] == 1:
             try:
                 await message.delete()
                 self._permission_denied = self.code_format(f'The message by {message.author.name} has been removed')
@@ -163,6 +189,7 @@ class ModBot(discord.Client):
                 print('Cannot delete message because ', e)
                 self._permission_denied = "Message cannot be deleted because permission was denied"
 
+        
         return threshold_message
     
     @property
@@ -241,15 +268,28 @@ you\'ll be banned from the channel\nCurrent count is ' + str(self.warning_count[
 
 
     def eval_text(self, message):
+
+        print(csam.eval_im(message))
         '''
         Given a message, forwards the message to Perspective and returns a dictionary of scores.
         '''
+        output = [None, None]
+        isCSAM = csam.eval_im(message)
+        if isCSAM:
+            output[0] =  {'SEVERE_TOXICITY': 1, 'PROFANITY': 1, 'IDENTITY_ATTACK': 1, 'THREAT': 1, 'TOXICITY':1, 'FLIRTATION': 0.5}
+        else:
+            output[0] = {'SEVERE_TOXICITY': 0, 'PROFANITY': 0, 'IDENTITY_ATTACK': 0, 'THREAT': 0, 'TOXICITY':0, 'FLIRTATION': 0}
+        
         PERSPECTIVE_URL = 'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze'
+
+        if message.content == "":
+            return output
         
         # check if message has any encrypted characters present (any unicode that is not an ascii letter or emoji)
         for lett in message.content:
             if ord(lett) >= 128 and lett not in emoji.UNICODE_EMOJI:
-                return {'SEVERE_TOXICITY': 0.681, 'PROFANITY': 0.621, 'IDENTITY_ATTACK': 0.651, 'THREAT': 0.641, 'TOXICITY':0.661, 'FLIRTATION': 0.601}
+                output[1] = {'SEVERE_TOXICITY': 0.681, 'PROFANITY': 0.621, 'IDENTITY_ATTACK': 0.651, 'THREAT': 0.641, 'TOXICITY':0.661, 'FLIRTATION': 0.601}
+                return output
         
         url = PERSPECTIVE_URL + '?key=' + self.perspective_key
         data_dict = {
@@ -268,8 +308,9 @@ you\'ll be banned from the channel\nCurrent count is ' + str(self.warning_count[
         scores = {}
         for attr in response_dict["attributeScores"]:
             scores[attr] = response_dict["attributeScores"][attr]["summaryScore"]["value"]
-
-        return scores
+                
+        output[1] = scores
+        return output
     
     def code_format(self, text):
         return "```" + text + "```"

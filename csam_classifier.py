@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
-!pip install nudenet
-!pip install py-agender
-!pip install hmtai
-!pip install wget
-!pip3 install tensorflow==1.10
+# !pip install nudenet
+# !pip install py-agender
+# !pip install hmtai
+# !pip install wget
+# !pip3 install tensorflow==1.10
 from nudenet import NudeClassifier
 from pyagender import PyAgender
 import hmtai
@@ -14,6 +14,7 @@ import tensorflow as tf
 import keras
 import cv2
 import os
+import requests
 
 # classifies an image and finds the minimum age of all people present in the image
 def age_class(filename):
@@ -36,17 +37,21 @@ def nude_class(filename):
 
 # determines whether an image is considered CSAM, return True if CSAM and False otherwise
 def is_csam(url):
-  filename = wget.download(url)
+  print("THIS IS URL: ",url)
+  # filename = wget.download(url)
+  r = requests.get(url, stream=True)
+  filename = "CSAM/" + url.split('/')[-1]
+  open(filename, 'wb').write(r.content)
   age = age_class(filename)
   nude_prob = nude_class(filename)  
   csam = nude_prob > 0.8 and age < 18
   os.remove(filename)
   return csam
 
-def eval_im(self, message):
-  output = (0, 0)
-  if message.attachments.size > 0:
-    image_url = message.attachments.first().url
+def eval_im(message):
+  if len(message.attachments) > 0:
+    image_url = message.attachments[0].url
     if is_csam(image_url):
       # do report flow thing
-      output[0] = 1
+      return True
+  return False
