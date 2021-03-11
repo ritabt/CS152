@@ -4,12 +4,14 @@ import requests
 import re
 import json
 
+
 class State(Enum):
     REPORT_START = auto()
     AWAITING_MESSAGE = auto()
     MESSAGE_IDENTIFIED = auto()
     REPORT_COMPLETE = auto()
     CONTINUE_REPORT = auto()
+
 
 class ToxicThreshold(Enum):
     IDENTITY_ATTACK = 0.87
@@ -19,6 +21,7 @@ class ToxicThreshold(Enum):
     SEVERE_TOXICITY = 0.75
     PROFANITY = 0.85
 
+
 class QuestionableThreshold(Enum):
     IDENTITY_ATTACK = 0.65
     THREAT = 0.64
@@ -27,17 +30,19 @@ class QuestionableThreshold(Enum):
     SEVERE_TOXICITY = 0.68
     PROFANITY = 0.62
 
+
 class Type(Enum):
-   SPAM_KEYWORD = "spam"
-   DISLIKE_KEYWORD = "dislike"
-   HATE_KEYWORD = "hate speech"
-   DOXXING_KEYWORD = "doxxing"
-   THREAT_KEYWORD = "threat"
-   HARRASS_KEYWORD = "harassment"
-   HEALTH_KEYWORD = "suicide/self-harm"
-   GRAPHIC_KEYWORD = "nudity/pornagraphy"
-   CSA_KEYWORD = "csa"
-   ASA_KEYWORD = "asa"
+    SPAM_KEYWORD = "spam"
+    DISLIKE_KEYWORD = "dislike"
+    HATE_KEYWORD = "hate speech"
+    DOXXING_KEYWORD = "doxxing"
+    THREAT_KEYWORD = "threat"
+    HARRASS_KEYWORD = "harassment"
+    HEALTH_KEYWORD = "suicide/self-harm"
+    GRAPHIC_KEYWORD = "nudity/pornagraphy"
+    CSA_KEYWORD = "csa"
+    ASA_KEYWORD = "asa"
+
 
 class Report:
     START_KEYWORD = "report"
@@ -59,12 +64,11 @@ class Report:
         '''
 
         if message.content == self.CANCEL_KEYWORD:
-
             self.client.state = self.state = State.REPORT_COMPLETE
             return ["Report cancelled."]
 
         if self.state == State.REPORT_START:
-            reply =  "Thank you for starting the reporting process. "
+            reply = "Thank you for starting the reporting process. "
             reply += "Say `help` at any time for more information.\n\n"
             reply += "Please copy paste the link to the message you want to report.\n"
             reply += "You can obtain this link by right-clicking the message and clicking `Copy Message Link`."
@@ -79,34 +83,36 @@ class Report:
                 return ["I'm sorry, I couldn't read that link. Please try again or say `cancel` to cancel."]
             self.client.private_dm_guild = guild = self.client.get_guild(int(m.group(1)))
             if not guild:
-                return ["I cannot accept reports of messages from guilds that I'm not in. Please have the guild owner add me to the guild and try again."]
+                return [
+                    "I cannot accept reports of messages from guilds that I'm not in. Please have the guild owner add me to the guild and try again."]
             channel = guild.get_channel(int(m.group(2)))
             if not channel:
-                return ["It seems this channel was deleted or never existed. Please try again or say `cancel` to cancel."]
+                return [
+                    "It seems this channel was deleted or never existed. Please try again or say `cancel` to cancel."]
             try:
                 message = await channel.fetch_message(int(m.group(3)))
                 self.client.message = message
             except discord.errors.NotFound:
-                return ["It seems this message was deleted or never existed. Please try again or say `cancel` to cancel."]
+                return [
+                    "It seems this message was deleted or never existed. Please try again or say `cancel` to cancel."]
 
             # Here we've found the message - it's up to you to decide what to do next!
             self.client.state = self.state = State.MESSAGE_IDENTIFIED
             reply = "I found this message:\n" + "```" + message.author.name + ": " + message.content + "```\n"
             reply += "Please choose why you wish to report this content\n\n"
-            reply += "Reply 'spam' to report spam\n"
-            reply += "Reply 'dislike' to report something you don't like\n"
-            reply += "Reply 'hate speech' to report hate speech\n"
-            reply += "Reply 'doxxing' to report doxxing\n"
-            reply += "Reply 'threat' to report a violent or suspicious threat\n"
-            reply += "Reply 'harassment' to report harassment or encouraging harassment\n"
-            reply += "Reply 'suicide/self-harm' to report suicide or self-harm\n"
-            reply += "Reply 'nudity/pornagraphy' to report nudity or pornagraphy\n"
-            reply += "Reply 'csa' to report child abuse, child exploitation, or grooming behaviors\n"
-            reply += "Reply 'adult-abuse/adult-exploitation' to report abuse, exploitation, or grooming behaviors\n"
+            reply += "`" + "spam" + "`" + "\n"
+            reply += "`" + "dislike" + "`" + "\n"
+            reply += "`" + "hate speech" + "`" + "\n"
+            reply += "`" + "doxxing" + "`" + "\n"
+            reply += "`" + "threat" + "`" + "\n"
+            reply += "`" + "harassment" + "`" + "\n"
+            reply += "`" + "suicide/self-harm" + "`" + "\n"
+            reply += "`" + "nudity/pornography" + "`" + "\n"
+            reply += "`" + "csa" + "`" + " - child abuse, child exploitation, or grooming behaviors\n"
+            reply += "`" + "adult-abuse/adult-exploitation" + "`" + "\n"
             reply += "\n\n"
-           
+
             return [reply]
-        
 
         if self.client.state == State.CONTINUE_REPORT:
             try:
@@ -121,12 +127,10 @@ class Report:
     def handle_report_reply(self, message):
         try:
             type_key = f'{message.upper()}_KEYWORD'
-            result = f'High Priority - This message was reported as {Type[type_key].value}' 
+            result = f'High Priority - This message was reported  as {Type[type_key].value}'
             return result
         except KeyError:
             "Invalid response"
-    
-
 
     def eval_threshold(self, scores):
         '''
@@ -142,10 +146,10 @@ class Report:
                 toxic_results.append(ToxicThreshold[key])
             elif scores.get(key, 0) > QuestionableThreshold[key].value:
                 questionable_results.append(QuestionableThreshold[key])
-        
+
         if toxic_results:
-            return 1, toxic_results  
-        elif questionable_results: 
+            return 1, toxic_results
+        elif questionable_results:
             return 2, questionable_results
         else:
             return 0, []
@@ -176,7 +180,7 @@ class Report:
 
     def perform_questionable_action(self, questionable_results):
 
-        if not questionable_results :
+        if not questionable_results:
             return "This message seems to be okay"
 
         threshold_phrase = {
@@ -195,7 +199,6 @@ class Report:
 
         if len(questionable_results) == 1:
             return message.rstrip(', ')
-
 
         formatted_message = message.rstrip(', ').split(', ')
         last = formatted_message.pop()
