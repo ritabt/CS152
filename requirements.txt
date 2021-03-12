@@ -1,2 +1,5 @@
 discord
 emoji
+requests
+nudenet == 2.0.9
+py-agender ==  0.0.9
