@@ -8,7 +8,7 @@ import re
 import requests 
 from report import Report, State
 import emoji
-import csam_classifier as csam
+# import csam_classifier as csam
 
 # Set up logging to the console
 logger = logging.getLogger('discord')
@@ -171,7 +171,7 @@ class ModBot(discord.Client):
         if self.warning_count[author_id] >= 3:
             self._user_ban_message = user_ban_message
         
-        #If a message is found toxic, we want to delete the message
+        # If a message is found toxic, we want to delete the message
         if threshold_results_img[0] == 1:
             try:
                 await message.delete()
@@ -181,7 +181,9 @@ class ModBot(discord.Client):
                 print('Cannot delete message because ', e)
                 self._permission_denied = "Message cannot be deleted because permission was denied"
 
-        if scores is not None and threshold_results[0] == 1:
+        if (scores is not None and threshold_results[0] == 1) or self.warning_count[author_id] >= 3:
+
+
             try:
                 await message.delete()
                 self._permission_denied = self.code_format(f'The message by {message.author.name} has been removed')
@@ -242,7 +244,7 @@ class ModBot(discord.Client):
             return
         
         if self.warning_count[message.author.id] > 3:
-            return 
+            return
 
         warning_count_message = 'The message is not appropriate for this platform. After three counts, \
 you\'ll be banned from the channel\nCurrent count is ' + str(self.warning_count[message.author.id])
@@ -263,23 +265,26 @@ you\'ll be banned from the channel\nCurrent count is ' + str(self.warning_count[
         if self.user_ban_message:  
             final_message = self.user_ban_message
             await message.channel.send(self.user_ban_message)
-    
+
+        if self.warning_count[message.author.id] == 3:
+            self.warning_count[message.author.id] +=1
         # await mod_channel.send(self.code_format(json.dumps(scores, indent=2)))
 
 
     def eval_text(self, message):
 
-        print(csam.eval_im(message))
+        # print(csam.eval_im(message))
         '''
         Given a message, forwards the message to Perspective and returns a dictionary of scores.
         '''
         output = [None, None]
-        isCSAM = csam.eval_im(message)
+        # isCSAM = csam.eval_im(message)
+        isCSAM = False
         if isCSAM:
             output[0] =  {'SEVERE_TOXICITY': 1, 'PROFANITY': 1, 'IDENTITY_ATTACK': 1, 'THREAT': 1, 'TOXICITY':1, 'FLIRTATION': 0.5}
         else:
             output[0] = {'SEVERE_TOXICITY': 0, 'PROFANITY': 0, 'IDENTITY_ATTACK': 0, 'THREAT': 0, 'TOXICITY':0, 'FLIRTATION': 0}
-        
+
         PERSPECTIVE_URL = 'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze'
 
         if message.content == "":
