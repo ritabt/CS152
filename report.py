@@ -137,8 +137,6 @@ class Report:
         Check the threshold of of every message
         '''
 
-        print("scoresssssss>>>>>", scores)
-
         toxic_results = []
         questionable_results = []
         for key in scores.keys():
@@ -166,10 +164,8 @@ class Report:
             ToxicThreshold.FLIRTATION: 'flirtatious'
         }
 
-        message = 'ALERT!!! This message was flagged as '
-
         for threshold in toxic_results:
-            message += threshold_phrase.get(threshold, '') + ', '
+            message = threshold_phrase.get(threshold, '') + ', '
 
         if len(toxic_results) == 1:
             return message.rstrip(', ')

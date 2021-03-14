@@ -8,7 +8,7 @@ import re
 import requests 
 from report import Report, State
 import emoji
-# import csam_classifier as csam
+import csam_classifier as csam
 
 # Set up logging to the console
 logger = logging.getLogger('discord')
@@ -81,7 +81,7 @@ class ModBot(discord.Client):
 
     async def on_message_edit(self, before, message):
         '''
-        This function is called whenever a message is sent in a channel that the bot can see (including DMs). 
+        This function is called whenever a message is edited in a channel that the bot can see (including DMs).
         Currently the bot is configured to only handle messages that are sent over DMs or in your group's "group-#" channel. 
         '''
         # Ignore messages from us 
@@ -93,6 +93,7 @@ class ModBot(discord.Client):
             await self.handle_channel_message(message)
         else:
             await self.handle_dm(message)
+
 
     async def handle_report(self, message, type_dm=False):
         author_id = message.author.id
@@ -109,14 +110,14 @@ class ModBot(discord.Client):
    
         
         if type_dm:
-            # Let the report class handle this message; forward all the messages it returns to uss
+            # Let the report class handle this message; forward all the messages it returns to us
             responses = await self.reports[author_id].handle_message(message)
 
             if self.state != State.CONTINUE_REPORT:
                 for r in responses:
                     await message.channel.send(r)
                 if self.state == State.MESSAGE_IDENTIFIED:
-                    self.original_message  =self.message
+                    self.original_message = self.message
                     self.state = State.CONTINUE_REPORT
 
             # if the user inputs any other thing except a valid link to a message they intend to report
@@ -182,8 +183,6 @@ class ModBot(discord.Client):
                 self._permission_denied = "Message cannot be deleted because permission was denied"
 
         if (scores is not None and threshold_results[0] == 1) or self.warning_count[author_id] >= 3:
-
-
             try:
                 await message.delete()
                 self._permission_denied = self.code_format(f'The message by {message.author.name} has been removed')
@@ -191,7 +190,6 @@ class ModBot(discord.Client):
                 print('Cannot delete message because ', e)
                 self._permission_denied = "Message cannot be deleted because permission was denied"
 
-        
         return threshold_message
     
     @property
@@ -246,17 +244,32 @@ class ModBot(discord.Client):
         if self.warning_count[message.author.id] > 3:
             return
 
-        warning_count_message = 'The message is not appropriate for this platform. After three counts, \
-you\'ll be banned from the channel\nCurrent count is ' + str(self.warning_count[message.author.id])
-        await mod_channel.send(f'Forwarded message:\n{message.author.name}: "{message.content}"')
-        await mod_channel.send(response_message)
+        WARNING_EMOJI = ':bangbang:'
+        DEL_MSG_EMOJI = ':x:'
+        RESOLVED_NO_ACTION = ':white_check_mark:'
+        BAN_USER_EMOJI = ':no_pedestrians:'
+        WARN_USER_EMOJI = ':grey_exclamation:'
 
+        formatted_report =  WARNING_EMOJI + "**" + "ALERT: " + "Flagged Content" + "**" + WARNING_EMOJI + "\n"
+        formatted_report += "**" + "POSSIBLE REASONS:" + "** " + response_message + "\n"
+        formatted_report += "**" + "FROM: " + "** " + message.author.name + "\n"
+        formatted_report += "**" + "CONTENT: " + "** " + "`" + message.content + "`" + "\n\n"
+        formatted_report += "Would you like to take action? React with any of the following\n\n"
+        formatted_report += DEL_MSG_EMOJI + " - " + "**" + "delete " + "**" + "the message\n\n"
+        formatted_report += WARN_USER_EMOJI + " - send a " + "**" + "warning " + "**" + "to the user\n\n"
+        formatted_report += BAN_USER_EMOJI + " - " + "**" + "ban " + "**" + "the user\n\n"
+        formatted_report += RESOLVED_NO_ACTION + " - " + "**" + "resolve " + "**" + "this report\n\n"
+        await mod_channel.send(formatted_report)
+
+        # Inform user through DM that their message was found violating the platform rules
         if self._toxic_state:
+            warning_count_message = 'The message is not appropriate for this platform. After three counts, \
+you\'ll be banned from the channel\nCurrent count is ' + str(self.warning_count[message.author.id])
             await message.author.send(self.code_format(f'{message.content}\n{response_message}\n{warning_count_message}'))
 
         
         # send the final message to the mod channel
-        final_message =''
+        final_message = ''
         
         # If it is a message it is expected to delete
         if self._permission_denied and self._toxic_state:
@@ -278,7 +291,7 @@ you\'ll be banned from the channel\nCurrent count is ' + str(self.warning_count[
         Given a message, forwards the message to Perspective and returns a dictionary of scores.
         '''
         output = [None, None]
-        # isCSAM = csam.eval_im(message)
+        isCSAM = csam.eval_im(message)
         isCSAM = False
         if isCSAM:
             output[0] =  {'SEVERE_TOXICITY': 1, 'PROFANITY': 1, 'IDENTITY_ATTACK': 1, 'THREAT': 1, 'TOXICITY':1, 'FLIRTATION': 0.5}
@@ -291,10 +304,10 @@ you\'ll be banned from the channel\nCurrent count is ' + str(self.warning_count[
             return output
         
         # check if message has any encrypted characters present (any unicode that is not an ascii letter or emoji)
-        for lett in message.content:
-            if ord(lett) >= 128 and lett not in emoji.UNICODE_EMOJI:
-                output[1] = {'SEVERE_TOXICITY': 0.681, 'PROFANITY': 0.621, 'IDENTITY_ATTACK': 0.651, 'THREAT': 0.641, 'TOXICITY':0.661, 'FLIRTATION': 0.601}
-                return output
+        # for lett in message.content:
+        #     if ord(lett) >= 128 and lett not in emoji.UNICODE_EMOJI:
+        #         output[1] = {'SEVERE_TOXICITY': 0.681, 'PROFANITY': 0.621, 'IDENTITY_ATTACK': 0.651, 'THREAT': 0.641, 'TOXICITY':0.661, 'FLIRTATION': 0.601}
+        #         return output
         
         url = PERSPECTIVE_URL + '?key=' + self.perspective_key
         data_dict = {
