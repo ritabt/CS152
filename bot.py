@@ -286,13 +286,11 @@ you\'ll be banned from the channel\nCurrent count is ' + str(self.warning_count[
 
     def eval_text(self, message):
 
-        # print(csam.eval_im(message))
         '''
         Given a message, forwards the message to Perspective and returns a dictionary of scores.
         '''
         output = [None, None]
         isCSAM = csam.eval_im(message)
-        isCSAM = False
         if isCSAM:
             output[0] =  {'SEVERE_TOXICITY': 1, 'PROFANITY': 1, 'IDENTITY_ATTACK': 1, 'THREAT': 1, 'TOXICITY':1, 'FLIRTATION': 0.5}
         else:
